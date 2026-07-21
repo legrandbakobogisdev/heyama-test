@@ -13,15 +13,17 @@ export class StorageService {
   private readonly publicUrl: string;
 
   constructor() {
-    this.bucket = process.env.R2_BUCKET as string;
-    this.publicUrl = process.env.R2_PUBLIC_URL as string;
+    this.bucket = process.env.S3_BUCKET as string;
+    this.publicUrl = process.env.S3_PUBLIC_URL as string;
 
     this.client = new S3Client({
-      region: 'auto',
-      endpoint: process.env.R2_ENDPOINT,
+      region: 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT,
+      // requis par MinIO (style de requête path/bucket, pas bucket.domaine)
+      forcePathStyle: true,
       credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY as string,
-        secretAccessKey: process.env.R2_SECRET_KEY as string,
+        accessKeyId: process.env.S3_ACCESS_KEY as string,
+        secretAccessKey: process.env.S3_SECRET_KEY as string,
       },
     });
   }
@@ -42,7 +44,7 @@ export class StorageService {
       }),
     );
 
-    return { url: `${this.publicUrl}/${key}`, key };
+    return { url: `${this.publicUrl}/${this.bucket}/${key}`, key };
   }
 
   async delete(key: string): Promise<void> {
@@ -51,8 +53,8 @@ export class StorageService {
     );
   }
 
-  // Retrouve la clé R2 à partir de l'URL publique stockée en base
+  // Retrouve la clé à partir de l'URL publique stockée en base
   keyFromUrl(url: string): string {
-    return url.replace(`${this.publicUrl}/`, '');
+    return url.replace(`${this.publicUrl}/${this.bucket}/`, '');
   }
 }

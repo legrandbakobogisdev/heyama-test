@@ -3,6 +3,14 @@ import { ObjectItem } from "@/types/object";
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
+// Passe par notre propre route API pour éviter que le navigateur touche
+// directement une URL ngrok (page d'avertissement HTML au lieu de l'image).
+export function proxiedImageUrl(imageUrl: string): string {
+  return `${BASE_PATH}/api/image?url=${encodeURIComponent(imageUrl)}`;
+}
+
 export async function fetchObjects(): Promise<ObjectItem[]> {
   const res = await fetch(`${API_URL}/objects`);
   if (!res.ok) throw new Error("Impossible de récupérer les objects");

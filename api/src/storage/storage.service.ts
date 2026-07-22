@@ -17,9 +17,10 @@ export class StorageService {
     this.publicUrl = process.env.S3_PUBLIC_URL as string;
 
     this.client = new S3Client({
-      region: 'us-east-1',
+      // MinIO : "us-east-1" par convention. R2 : "auto" (S3_REGION=auto).
+      region: process.env.S3_REGION || 'us-east-1',
       endpoint: process.env.S3_ENDPOINT,
-      // requis par MinIO (style de requête path/bucket, pas bucket.domaine)
+      // requis par MinIO et R2 (style de requête path/bucket, pas bucket.domaine)
       forcePathStyle: true,
       credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY as string,
@@ -44,7 +45,9 @@ export class StorageService {
       }),
     );
 
-    return { url: `${this.publicUrl}/${this.bucket}/${key}`, key };
+    // S3_PUBLIC_URL est deja scope a la bucket (MinIO : http://host:9000/bucket,
+    // R2 : le sous-domaine r2.dev de la bucket), donc pas de bucket dans le chemin.
+    return { url: `${this.publicUrl}/${key}`, key };
   }
 
   async delete(key: string): Promise<void> {
@@ -55,6 +58,6 @@ export class StorageService {
 
   // Retrouve la clé à partir de l'URL publique stockée en base
   keyFromUrl(url: string): string {
-    return url.replace(`${this.publicUrl}/${this.bucket}/`, '');
+    return url.replace(`${this.publicUrl}/`, '');
   }
 }

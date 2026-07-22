@@ -1,29 +1,32 @@
 # Heyama Test — Plateforme de gestion d'Objects
 
-Mini-système full-stack : API centrale (NestJS) communiquant avec un client web (Next.js) et un client mobile (Expo), upload d'images vers MinIO (S3-compatible, local), synchronisation temps réel via Socket.io.
+Mini-système full-stack pour le test technique Heyama : une API centrale (NestJS) qui parle à un client web (Next.js) et un client mobile (Expo), avec upload d'images vers MinIO (S3-compatible, en local) et synchronisation temps réel via Socket.io.
 
-Voir le cahier des charges complet : [docs/CDC.md](docs/CDC.md).
+Le cahier des charges complet est dans [docs/CDC.md](docs/CDC.md), et une doc technique détaillée (architecture, fichier par fichier) dans [docs/DOCUMENTATION.pdf](docs/DOCUMENTATION.pdf).
 
 ## Structure du repo
 
 ```
 .
-├── api/       # NestJS + MongoDB (Mongoose) + MinIO (S3-compatible) + Socket.io
+├── api/       # NestJS + MongoDB (Mongoose) + MinIO + Socket.io
 ├── web/       # Next.js + shadcn/ui
 ├── mobile/    # React Native + Expo
-├── docs/      # Cahier des charges
+├── proxy/     # Reverse proxy local (bonus, pour l'accès distant via ngrok)
+├── docs/      # Cahier des charges + doc technique
 └── docker-compose.yml   # MongoDB + MinIO en local
 ```
 
-## Setup
+Le repo suit un workflow GitFlow (`main` pour les releases taguées, `develop` pour l'intégration, une branche `feature/*` par morceau de travail).
 
-### 1. MongoDB + MinIO (Docker local)
+## Setup en local
+
+### 1. MongoDB + MinIO (Docker)
 
 ```bash
 docker-compose up -d
 ```
 
-Le service `minio-init` crée automatiquement le bucket `heyama-objects` et le rend public en lecture au premier démarrage. Console MinIO disponible sur http://localhost:9001 (identifiants : `minioadmin` / `minioadmin`).
+Le service `minio-init` crée automatiquement le bucket `heyama-objects` et le rend public en lecture au premier démarrage. Console MinIO sur http://localhost:9001 (`minioadmin` / `minioadmin`).
 
 ### 2. API (NestJS)
 
@@ -34,6 +37,8 @@ npm install
 npm run start:dev
 ```
 
+Tourne sur http://localhost:3000.
+
 ### 3. Web (Next.js)
 
 ```bash
@@ -41,6 +46,8 @@ cd web
 npm install
 npm run dev
 ```
+
+Tourne sur http://localhost:3001 (le 3000 est déjà pris par l'API). Copier `.env.example` en `.env.local` si besoin.
 
 ### 4. Mobile (Expo)
 
@@ -50,16 +57,95 @@ npm install
 npx expo start
 ```
 
-⚠️ Pour joindre l'API/MinIO depuis un device physique (mobile), l'app mobile et `S3_PUBLIC_URL` doivent utiliser l'**IP locale de la machine hôte** (pas `localhost`), tant que le téléphone est sur le même réseau Wi-Fi que le PC — ex. `http://192.168.x.x:3000`. `S3_ENDPOINT` reste en `localhost` (utilisé uniquement côté serveur, sur la même machine que MinIO). Si l'IP locale change (autre réseau Wi-Fi), mettre à jour `api/.env` et redémarrer l'API. Ngrok reste une option de secours si mobile et PC ne sont pas sur le même réseau.
+Scanner le QR code avec l'app Expo Go (SDK 54).
 
-## Variables d'environnement (API)
+⚠️ **Le téléphone ne peut pas résoudre `localhost`.** Pour qu'un device physique joigne l'API (et les images MinIO), il faut utiliser l'IP locale de la machine hôte, tant que le téléphone est sur le même Wi-Fi que le PC :
 
+```bash
+# api/.env
+S3_PUBLIC_URL=http://192.168.x.x:9000
+
+# mobile/.env
+EXPO_PUBLIC_API_URL=http://192.168.x.x:3000
 ```
-S3_ENDPOINT=http://localhost:9000
+
+Si l'IP change (autre réseau), il faut mettre à jour ces deux fichiers et redémarrer l'API + Metro.
+
+## Variables d'environnement
+
+**`api/.env`**
+```
+S3_ENDPOINT=http://localhost:9000     # usage serveur uniquement, jamais exposé au client
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET=heyama-objects
-S3_PUBLIC_URL=http://192.168.x.x:9000
+S3_PUBLIC_URL=http://localhost:9000   # URL renvoyée aux clients pour les images
 MONGO_URI=mongodb://localhost:27017/heyama
 PORT=3000
+```
+
+**`web/.env.local`**
+```
+NEXT_PUBLIC_API_URL=http://localhost:3000
+```
+
+**`mobile/.env`**
+```
+EXPO_PUBLIC_API_URL=http://localhost:3000
+```
+
+## Accès distant (bonus) : partager l'app avec un testeur
+
+Si le testeur n'est pas sur le même réseau, on expose tout via un tunnel [ngrok](https://ngrok.com). Le plan gratuit n'accorde qu'un seul hostname public par compte, donc on passe par un petit reverse proxy local (`proxy/server.js`) qui redistribue une seule URL vers les trois services :
+
+```bash
+node proxy/server.js       # écoute sur :8000, route par chemin
+ngrok http 8000            # un seul tunnel
+```
+
+- `/` → API (port 3000)
+- `/app` → Web (port 3001)
+- `/uploads/*` → MinIO (port 9000)
+
+Une fois l'URL ngrok obtenue, la reporter partout (aucun `localhost` ne doit apparaître côté client) :
+
+```bash
+# api/.env
+S3_PUBLIC_URL=https://xxxx.ngrok-free.dev/uploads
+
+# web/.env.local
+NEXT_PUBLIC_API_URL=https://xxxx.ngrok-free.dev
+NEXT_PUBLIC_BASE_PATH=/app
+
+# mobile/.env
+EXPO_PUBLIC_API_URL=https://xxxx.ngrok-free.dev
+```
+
+Puis redémarrer API + Web (et Metro si le mobile doit aussi passer par ngrok). Le domaine ngrok gratuit reste stable d'une session à l'autre pour un même compte, donc pas besoin de tout reconfigurer à chaque redémarrage — juste relancer les services dans l'ordre : Docker → API → Web → proxy → ngrok.
+
+**Deux limitations du plan gratuit ngrok à connaître :**
+- Il affiche une page d'avertissement HTML aux navigateurs sur la première visite (bouton "Visit Site" à cliquer). Normal, pas un bug.
+- Il bloque aussi les requêtes **GET** faites par un navigateur (mais pas les POST/DELETE, va savoir). Le code contourne déjà ça côté web (header `ngrok-skip-browser-warning` sur les appels API et le socket, et les images passent par un composant qui les récupère en JS plutôt qu'une balise `<img>` classique). Le mobile n'est pas concerné, un client réseau natif n'est pas détecté comme un navigateur.
+
+## Build d'un APK release (bonus)
+
+```bash
+cd mobile
+npx expo prebuild --platform android
+cd android
+./gradlew assembleRelease
+```
+
+L'APK sort dans `android/app/build/outputs/apk/release/app-release.apk`, signé avec le keystore de debug par défaut d'Expo (largement suffisant pour un testeur, pas pour le Play Store). L'URL de l'API est figée dans le bundle au moment du build : si le testeur n'est pas sur le même réseau, penser à mettre `EXPO_PUBLIC_API_URL` sur l'URL ngrok *avant* de lancer `gradlew assembleRelease`, et à ne pas relancer ngrok entre-temps (l'URL changerait).
+
+Deux ou trois choses à savoir si le build native plante :
+- Le dossier `android/` est régénéré à chaque `prebuild` — s'il y a un souci de version Gradle/NDK, ça repart de zéro à chaque fois.
+- `reactNativeArchitectures` dans `android/gradle.properties` peut être limité à `arm64-v8a` pour accélérer la compilation si on cible juste un téléphone moderne au lieu des 4 architectures par défaut.
+- Un build release compile du C++ pour chaque architecture ciblée ; ça peut prendre plusieurs Go d'espace disque temporaire.
+
+## Installer sur un device Android via adb
+
+```bash
+adb devices                              # vérifier que le téléphone est détecté
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```

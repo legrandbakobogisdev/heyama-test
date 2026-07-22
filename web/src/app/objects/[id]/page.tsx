@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { deleteObject, fetchObject, proxiedImageUrl } from "@/lib/api";
+import { ProxiedImage } from "@/components/proxied-image";
+import { deleteObject, fetchObject } from "@/lib/api";
 import { ObjectItem } from "@/types/object";
 
 function BackLink() {
@@ -68,9 +69,8 @@ export default function ObjectDetailPage() {
     <main className="flex flex-1 flex-col items-center px-6 py-12">
       <div className="w-full max-w-md">
         <BackLink />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={proxiedImageUrl(object.imageUrl)}
+        <ProxiedImage
+          src={object.imageUrl}
           alt={object.title}
           className="mb-6 h-64 w-full rounded-lg object-cover"
         />

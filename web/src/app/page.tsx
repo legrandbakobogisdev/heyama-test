@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { fetchObjects, proxiedImageUrl } from "@/lib/api";
+import { ProxiedImage } from "@/components/proxied-image";
+import { fetchObjects } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { ObjectItem } from "@/types/object";
 
@@ -70,9 +71,8 @@ export default function Home() {
             {objects.map((object) => (
               <Link key={object._id} href={`/objects/${object._id}`}>
                 <Card className="h-full overflow-hidden py-0 transition-colors hover:border-ring">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={proxiedImageUrl(object.imageUrl)}
+                  <ProxiedImage
+                    src={object.imageUrl}
                     alt={object.title}
                     className="h-40 w-full object-cover"
                   />

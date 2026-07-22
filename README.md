@@ -4,6 +4,16 @@ Mini-système full-stack pour le test technique Heyama : une API centrale (NestJ
 
 Le cahier des charges complet est dans [docs/CDC.md](docs/CDC.md), et une doc technique détaillée (architecture, fichier par fichier) dans [docs/DOCUMENTATION.pdf](docs/DOCUMENTATION.pdf).
 
+## Déploiement en production
+
+L'app tourne en continu, indépendamment de toute machine locale :
+
+- **Web** : https://heyama-web.onrender.com
+- **API** : https://heyama-api-tn3u.onrender.com
+- **Mobile** : build l'APK (voir plus bas) avec `EXPO_PUBLIC_API_URL=https://heyama-api-tn3u.onrender.com`
+
+Stack de prod : Render (API + Web, plan gratuit), MongoDB Atlas (cluster M0 gratuit), Cloudflare R2 (stockage image, remplace MinIO qui a besoin d'un disque persistant). Le plan gratuit Render met le service en veille après 15 min d'inactivité — le premier chargement après une pause peut prendre 30-60s le temps qu'il redémarre.
+
 ## Structure du repo
 
 ```
@@ -73,15 +83,27 @@ Si l'IP change (autre réseau), il faut mettre à jour ces deux fichiers et red�
 
 ## Variables d'environnement
 
-**`api/.env`**
+**`api/.env`** (local, MinIO)
 ```
-S3_ENDPOINT=http://localhost:9000     # usage serveur uniquement, jamais exposé au client
+S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minioadmin
 S3_SECRET_KEY=minioadmin
 S3_BUCKET=heyama-objects
-S3_PUBLIC_URL=http://localhost:9000   # URL renvoyée aux clients pour les images
+S3_PUBLIC_URL=http://localhost:9000/heyama-objects   # bucket inclus dans le chemin
+S3_REGION=us-east-1
 MONGO_URI=mongodb://localhost:27017/heyama
 PORT=3000
+```
+
+**`api/.env`** (prod, Cloudflare R2 — voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md) pour le detail)
+```
+S3_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+S3_ACCESS_KEY=<r2 access key id>
+S3_SECRET_KEY=<r2 secret access key>
+S3_BUCKET=heyama-objects
+S3_PUBLIC_URL=https://pub-xxxx.r2.dev   # deja scope a la bucket, pas de nom de bucket dans le chemin
+S3_REGION=auto
+MONGO_URI=mongodb+srv://user:pass@cluster.xxxx.mongodb.net/heyama?retryWrites=true&w=majority
 ```
 
 **`web/.env.local`**

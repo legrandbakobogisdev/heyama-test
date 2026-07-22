@@ -1,7 +1,14 @@
 import { Image } from 'expo-image';
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +24,7 @@ export default function ObjectListScreen() {
   const router = useRouter();
   const [objects, setObjects] = useState<ObjectItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchObjects()
@@ -41,6 +49,13 @@ export default function ObjectListScreen() {
     };
   }, []);
 
+  function handleRefresh() {
+    setRefreshing(true);
+    fetchObjects()
+      .then(setObjects)
+      .finally(() => setRefreshing(false));
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -57,6 +72,13 @@ export default function ObjectListScreen() {
             data={objects}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={theme.textSecondary}
+              />
+            }
             renderItem={({ item }) => (
               <Pressable
                 style={[styles.card, { backgroundColor: theme.backgroundElement }]}

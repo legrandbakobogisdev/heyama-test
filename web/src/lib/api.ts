@@ -3,22 +3,21 @@ import { ObjectItem } from "@/types/object";
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
-const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-
-// Passe par notre propre route API pour éviter que le navigateur touche
-// directement une URL ngrok (page d'avertissement HTML au lieu de l'image).
-export function proxiedImageUrl(imageUrl: string): string {
-  return `${BASE_PATH}/api/image?url=${encodeURIComponent(imageUrl)}`;
-}
+// Le plan gratuit ngrok affiche une page d'avertissement HTML aux requetes
+// GET venant d'un navigateur (pas aux POST/DELETE, curieusement). Ce header
+// la contourne ; inoffensif quand on n'est pas derriere ngrok.
+const NGROK_HEADERS = { "ngrok-skip-browser-warning": "true" };
 
 export async function fetchObjects(): Promise<ObjectItem[]> {
-  const res = await fetch(`${API_URL}/objects`);
+  const res = await fetch(`${API_URL}/objects`, { headers: NGROK_HEADERS });
   if (!res.ok) throw new Error("Impossible de récupérer les objects");
   return res.json();
 }
 
 export async function fetchObject(id: string): Promise<ObjectItem> {
-  const res = await fetch(`${API_URL}/objects/${id}`);
+  const res = await fetch(`${API_URL}/objects/${id}`, {
+    headers: NGROK_HEADERS,
+  });
   if (!res.ok) throw new Error("Object introuvable");
   return res.json();
 }
@@ -35,6 +34,7 @@ export async function createObject(
 
   const res = await fetch(`${API_URL}/objects`, {
     method: "POST",
+    headers: NGROK_HEADERS,
     body: form,
   });
 
@@ -47,6 +47,18 @@ export async function createObject(
 }
 
 export async function deleteObject(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/objects/${id}`, { method: "DELETE" });
+  const res = await fetch(`${API_URL}/objects/${id}`, {
+    method: "DELETE",
+    headers: NGROK_HEADERS,
+  });
   if (!res.ok) throw new Error("Échec de la suppression");
+}
+
+// Le navigateur ne peut pas ajouter de header a une balise <img> ; on fetch
+// donc l'image en JS (avec le header ci-dessus) et on la sert via une blob URL.
+export async function fetchImageBlobUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(imageUrl, { headers: NGROK_HEADERS });
+  if (!res.ok) throw new Error("Image introuvable");
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
